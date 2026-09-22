@@ -128,6 +128,7 @@ export default function FirestoreRecords() {
                         })}</p>
                         <h2 className="record-title">{record.fullName}</h2>
                         <p><strong className='strong'>Motivo:</strong> {record.helpWith}</p>
+                        {record.prayerReason && <p><strong className='strong'>Motivo de oración:</strong> {record.prayerReason}</p>}
                         <p><strong className='strong'>Consulta:</strong> {record.query}</p>
                         <p><strong className='strong'>WhatsApp:</strong> {record.whatsapp}</p>
                         <p><strong className='strong'>Miembro de iglesia:</strong> {record.churchMember}</p>

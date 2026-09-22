@@ -9,6 +9,7 @@ import { EarthAmericasIcon } from '@sanity/icons'
 import { HomeIcon } from '@sanity/icons'
 import { PinIcon } from '@sanity/icons'
 import { AsteriskIcon } from '@sanity/icons'
+import { ImagesIcon } from '@sanity/icons'
 import InfoRequests from "./components/InfoRequests"
 import LiveStreamControl from "./components/LiveStreamControl"
 // src/structure.js
@@ -23,6 +24,16 @@ export const structure = (S) =>
                     S.component()
                         .id("liveStream")
                         .component(LiveStreamControl)
+                ),
+            S.divider(),
+            S.listItem()
+                .title('Hero promocional del inicio')
+                .icon(ImagesIcon)
+                .schemaType('heroPromo')
+                .child(
+                    S.documentTypeList('heroPromo')
+                        .title('Heros del inicio')
+                        .defaultOrdering([{ field: 'order', direction: 'asc' }])
                 ),
             S.divider(),
             S.listItem()

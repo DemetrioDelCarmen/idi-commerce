@@ -16,9 +16,11 @@ import varonilPost from "./schemaTypes/varonilPost";
 import juvenilPost from "./schemaTypes/juvenilPost";
 import femenilPost from "./schemaTypes/femenilPost";
 import infantilPost from "./schemaTypes/infantilPost";
+import heroPromo from "./schemaTypes/heroPromo";
 
 export const schema = {
   types: [
+    heroPromo,
     book,
     event,
     localEvents,
