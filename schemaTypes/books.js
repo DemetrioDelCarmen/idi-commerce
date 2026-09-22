@@ -60,6 +60,13 @@ const book = {
             }
         },
         {
+            name: "showInStore",
+            title: "Mostrar en la tienda",
+            type: "boolean",
+            description: "Si está activo, el cuaderno aparece en la tienda pública del sitio.",
+            initialValue: false,
+        },
+        {
             name: "price",
             title: "Precio",
             type: "number",

@@ -16,6 +16,7 @@ import varonilPost from "./schemaTypes/varonilPost";
 import juvenilPost from "./schemaTypes/juvenilPost";
 import femenilPost from "./schemaTypes/femenilPost";
 import infantilPost from "./schemaTypes/infantilPost";
+import adolescentesPost from "./schemaTypes/adolescentesPost";
 import heroPromo from "./schemaTypes/heroPromo";
 
 export const schema = {
@@ -39,6 +40,7 @@ export const schema = {
     femenilPost,
     juvenilPost,
     infantilPost,
+    adolescentesPost,
 
   ],
 }
