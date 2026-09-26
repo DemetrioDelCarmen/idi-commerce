@@ -12,6 +12,7 @@ const cta = (name, title, description) => ({
     name,
     title,
     type: 'object',
+    group: 'botones',
     description,
     options: { collapsible: true, collapsed: false },
     fields: [
@@ -19,6 +20,8 @@ const cta = (name, title, description) => ({
             name: 'label',
             title: 'Texto del botón',
             type: 'string',
+            description: 'Ej. "Conozca más", "Inscríbase", "Ver detalles"',
+            placeholder: 'Conozca más',
             validation: (Rule) => Rule.max(32),
         },
         {
