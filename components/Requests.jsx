@@ -1,159 +1,272 @@
-'use client';
-import './components.css';
-import { useEffect, useState } from 'react';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
-import { db } from '../lib/firebaseClient';
+'use client'
+import './components.css'
+import {useEffect, useMemo, useState} from 'react'
+import {collection, onSnapshot, doc, updateDoc, deleteDoc} from 'firebase/firestore'
+import {db} from '../lib/firebaseClient'
+import {filtrar, normalizar, porFechaDesc, ORIGENES} from '../lib/registros'
 
-export default function FirestoreRecords() {
-    const [records, setRecords] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [category, setCategory] = useState('');
-    const [searchText, setSearchText] = useState('');
-    const [searchDate, setSearchDate] = useState('');
+// Deben coincidir exactamente con los valores que envía el formulario de /peticiones
+const CATEGORIAS = [
+    'Solicitar una oración',
+    'Solicitar un canto, Himno o Salmo',
+    'Enviar saludos',
+    'Informar una bienvenida',
+    'Hacer una pregunta referente a la escuela sabática o predicación',
+    'Enviar un comentario de la escuela sabática o predicación',
+]
 
-    // Fetch Firestore data in real-time with filters
+export default function Requests() {
+    const [registros, setRegistros] = useState([])
+    const [cargando, setCargando] = useState(true)
+    const [error, setError] = useState('')
+    const [categoria, setCategoria] = useState('')
+    const [busqueda, setBusqueda] = useState('')
+    const [dia, setDia] = useState('')
+    const [soloPendientes, setSoloPendientes] = useState(false)
+
+    // Se escucha la colección completa y se filtra en memoria: así ningún registro
+    // queda fuera por venir sin fecha o sin categoría, y no hacen falta índices.
     useEffect(() => {
-        let collectionRef = collection(db, 'infoRequests');
-        let q = collectionRef;
+        const unsubscribe = onSnapshot(
+            collection(db, 'infoRequests'),
+            (snapshot) => {
+                try {
+                    setRegistros(snapshot.docs.map(normalizar).sort(porFechaDesc))
+                    setError('')
+                } catch (e) {
+                    console.error('Error leyendo las peticiones:', e)
+                    setError('Algunos registros no se pudieron leer: ' + e.message)
+                }
+                setCargando(false)
+            },
+            (e) => {
+                console.error('Error fetching records:', e)
+                setError('No se pudieron cargar las peticiones: ' + e.message)
+                setCargando(false)
+            },
+        )
+        return () => unsubscribe()
+    }, [])
 
-        if (category) {
-            q = query(collectionRef, where('helpWith', '==', category));
-        }
-        if (searchDate) {
-            const formattedDate = searchDate;
+    const visibles = useMemo(
+        () => filtrar(registros, {categoria, busqueda, dia, soloPendientes}),
+        [registros, categoria, busqueda, dia, soloPendientes],
+    )
+    const pendientes = useMemo(() => registros.filter((r) => !r.served).length, [registros])
+    const hayFiltros = Boolean(categoria || busqueda || dia || soloPendientes)
 
-            q = query(collectionRef, where('createdAt', '>=', formattedDate + 'T00:00:00.000Z'), where('createdAt', '<=', formattedDate + 'T23:59:59.999Z'));
-        }
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs
-                .map((doc) => ({ id: doc.id, ...doc.data() }))
-                .filter((record) => record.fullName.toLowerCase().includes(searchText.toLowerCase()));
-
-            setRecords(data);
-            setLoading(false);
-        }, (error) => {
-            console.error('Error fetching records:', error);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, [category, searchText, searchDate]);
-
-    // Mark the record as "Atendido"
-    const markAsServed = async (id) => {
+    const marcarAtendido = async (id) => {
         try {
-            const recordRef = doc(db, 'infoRequests', id);
-            await updateDoc(recordRef, { served: true });
-            alert("Atendido");
-        } catch (error) {
-            console.error('Error updating document:', error);
+            await updateDoc(doc(db, 'infoRequests', id), {served: true})
+        } catch (e) {
+            console.error('Error updating document:', e)
+            alert('No se pudo marcar como atendido: ' + e.message)
         }
-    };
+    }
 
-    // Delete the record if marked as served
-    const deleteRecord = async (id) => {
+    const eliminar = async (id) => {
+        if (!window.confirm('¿Eliminar esta petición? No se puede deshacer.')) return
         try {
-            const confirmed = confirm('¿Eliminar?');
-            if (confirmed) {
-                const recordRef = doc(db, 'infoRequests', id);  // Ensure 'infoRequests' is the correct collection
-                await deleteDoc(recordRef);
-
-                // Update UI by removing the deleted record from state
-                setRecords((prevRecords) => prevRecords.filter(record => record.id !== id));
-
-                alert("Registro eliminado");
-            }
-        } catch (error) {
-            console.error('Error deleting document:', error);
+            await deleteDoc(doc(db, 'infoRequests', id))
+        } catch (e) {
+            console.error('Error deleting document:', e)
+            alert('No se pudo eliminar: ' + e.message)
         }
-    };
+    }
 
+    const limpiarFiltros = () => {
+        setCategoria('')
+        setBusqueda('')
+        setDia('')
+        setSoloPendientes(false)
+    }
 
-    if (loading) {
-        return <div className="loader"></div>;  // Loading spinner
+    if (cargando) {
+        return (
+            <div className="loading-container">
+                <div className="loader"></div>
+                <p>Cargando peticiones...</p>
+            </div>
+        )
     }
 
     return (
-        <div>
-            {/* Filter Inputs */}
-            <div className="filter-container">
-                <select className="category-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-                    <option value="">Buscar por categoría</option>
-                    <option value="Solicitar una oración">Solicitar una oración</option>
-                    <option value="Enviar un comentario de la escuela sabática o predicación">Enviar un comentario</option>
-                    <option value="Hacer una pregunta referente a la escuela sabática o predicación">Hacer una pregunta</option>
-                    <option value="Enviar saludos">Enviar saludos</option>
-                    <option value="Informar una bienvenida">Informar una bienvenida</option>
-                    <option value="Solicitar un canto, Himno o Salmo">Solicitar un canto</option>
-                </select>
-
-                <input
-                    type="text"
-                    placeholder="Buscar"
-                    className="search-input"
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                />
-
-                <input
-                    type="date"
-                    className="date-input"
-                    value={searchDate}
-                    onChange={(e) => setSearchDate(e.target.value)}
-                />
+        <div className="info-request-container">
+            <div className="header">
+                <h1>Peticiones</h1>
+                <p className="subtitle">
+                    {registros.length} en total · {pendientes} sin atender
+                </p>
             </div>
 
-            {/* Records List */}
-            <div className="container-requests">
-                {records.map((record) => (
-                    <div key={record.id} className="record-card">
+            {error && <div className="error-banner">{error}</div>}
 
-                        {
-                            record.served ?
-                                <div className="flex-end">
-                                    <button className="served-btn-check">Atendido
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="icon-served">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                        </svg>
-                                    </button>
+            <div className="filter-section">
+                <div className="filter-group">
+                    <label htmlFor="peticiones-categoria">Categoría</label>
+                    <select
+                        id="peticiones-categoria"
+                        className="filter-select"
+                        value={categoria}
+                        onChange={(e) => setCategoria(e.target.value)}
+                    >
+                        <option value="">Todas las categorías</option>
+                        {CATEGORIAS.map((valor) => (
+                            <option key={valor} value={valor}>
+                                {valor}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="filter-group">
+                    <label htmlFor="peticiones-busqueda">Buscar</label>
+                    <input
+                        id="peticiones-busqueda"
+                        type="text"
+                        className="search-input"
+                        placeholder="Nombre, WhatsApp, localidad o texto"
+                        value={busqueda}
+                        onChange={(e) => setBusqueda(e.target.value)}
+                    />
+                </div>
+
+                <div className="filter-group">
+                    <label htmlFor="peticiones-fecha">Fecha</label>
+                    <input
+                        id="peticiones-fecha"
+                        type="date"
+                        className="date-input"
+                        value={dia}
+                        onChange={(e) => setDia(e.target.value)}
+                    />
+                </div>
+
+                <label className="filter-check">
+                    <input
+                        type="checkbox"
+                        checked={soloPendientes}
+                        onChange={(e) => setSoloPendientes(e.target.checked)}
+                    />
+                    Solo sin atender
+                </label>
+
+                {hayFiltros && (
+                    <button type="button" className="clear-filters" onClick={limpiarFiltros}>
+                        Limpiar filtros
+                    </button>
+                )}
+            </div>
+
+            <div className="results-info">
+                <p>
+                    {visibles.length} {visibles.length === 1 ? 'registro encontrado' : 'registros encontrados'}
+                </p>
+            </div>
+
+            <div className="records-grid">
+                {visibles.length > 0 ? (
+                    visibles.map((registro) => (
+                        <div key={registro.id} className={`record-card ${registro.served ? 'served' : ''}`}>
+                            <div className="card-header">
+                                <div className="user-info">
+                                    <h2 className="record-title">{registro.fullName}</h2>
+                                    <p className="record-date">{registro.etiquetaFecha}</p>
                                 </div>
-                                :
-                                null
-                        }
-                        <p><strong className='strong'>Fecha:</strong> {new Date(record.createdAt).toLocaleDateString('es-MX', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                        })}</p>
-                        <h2 className="record-title">{record.fullName}</h2>
-                        <p><strong className='strong'>Motivo:</strong> {record.helpWith}</p>
-                        {record.prayerReason && <p><strong className='strong'>Motivo de oración:</strong> {record.prayerReason}</p>}
-                        <p><strong className='strong'>Consulta:</strong> {record.query}</p>
-                        <p><strong className='strong'>WhatsApp:</strong> {record.whatsapp}</p>
-                        <p><strong className='strong'>Miembro de iglesia:</strong> {record.churchMember}</p>
-                        {record.locality && <p><strong className='strong'>Localidad:</strong> {record.locality}</p>}
-                        {record.residence && <p><strong className='strong'>Residencia:</strong> {record.residence}</p>}
+                                {registro.served && <span className="served-badge">Atendido</span>}
+                            </div>
 
-                        <div className="container-flex">
+                            <div className="card-content">
+                                {registro.helpWith && (
+                                    <div className="info-row">
+                                        <span className="info-label">Motivo:</span>
+                                        <span className="info-value">{registro.helpWith}</span>
+                                    </div>
+                                )}
+                                {registro.prayerReason && (
+                                    <div className="info-row">
+                                        <span className="info-label">Motivo de oración:</span>
+                                        <span className="info-value">{registro.prayerReason}</span>
+                                    </div>
+                                )}
+                                <div className="info-row">
+                                    <span className="info-label">Petición:</span>
+                                    <span className="info-value">{registro.query || '—'}</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">WhatsApp:</span>
+                                    <span className="info-value">
+                                        {registro.whatsapp ? (
+                                            <a
+                                                href={`https://wa.me/${registro.whatsapp.replace(/\D/g, '')}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                {registro.whatsapp}
+                                            </a>
+                                        ) : (
+                                            '—'
+                                        )}
+                                    </span>
+                                </div>
+                                {registro.churchMember && (
+                                    <div className="info-row">
+                                        <span className="info-label">Miembro:</span>
+                                        <span className="info-value">{registro.churchMember}</span>
+                                    </div>
+                                )}
+                                {registro.locality && (
+                                    <div className="info-row">
+                                        <span className="info-label">Localidad:</span>
+                                        <span className="info-value">{registro.locality}</span>
+                                    </div>
+                                )}
+                                {registro.residence && (
+                                    <div className="info-row">
+                                        <span className="info-label">Residencia:</span>
+                                        <span className="info-value">{registro.residence}</span>
+                                    </div>
+                                )}
+                                {registro.source && (
+                                    <div className="info-row">
+                                        <span className="info-label">Origen:</span>
+                                        <span className="info-value">
+                                            {ORIGENES[registro.source] || registro.source}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
 
-                            {
-                                record.served ?
-                                    null
-                                    :
-                                    <button onClick={() => markAsServed(record.id)} className="served-btn">Atender</button>
-                            }
-
-                            {/* Show Delete button if "Atendido" */}
-                            {record.served && (
-                                <button onClick={() => deleteRecord(record.id)} className="delete-btn">
-                                    Eliminar
-                                </button>
-                            )}
+                            <div className="card-actions">
+                                {!registro.served ? (
+                                    <button
+                                        type="button"
+                                        className="action-btn serve-btn"
+                                        onClick={() => marcarAtendido(registro.id)}
+                                    >
+                                        Marcar como atendido
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="action-btn delete-btn"
+                                        onClick={() => eliminar(registro.id)}
+                                    >
+                                        Eliminar registro
+                                    </button>
+                                )}
+                            </div>
                         </div>
+                    ))
+                ) : (
+                    <div className="no-results">
+                        <h3>No se encontraron registros</h3>
+                        <p>
+                            {hayFiltros ? 'Pruebe a limpiar los filtros.' : 'Todavía no se han recibido peticiones.'}
+                        </p>
                     </div>
-                ))}
+                )}
             </div>
         </div>
-    );
+    )
 }

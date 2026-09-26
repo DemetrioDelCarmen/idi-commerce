@@ -1,184 +1,254 @@
-'use client';
-import './components.css';
-import { useEffect, useState } from 'react';
-import { collection, onSnapshot, doc, updateDoc, query, where, orderBy, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebaseClient';
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+'use client'
+import './components.css'
+import {useEffect, useMemo, useState} from 'react'
+import {collection, onSnapshot, doc, updateDoc, deleteDoc} from 'firebase/firestore'
+import {db} from '../lib/firebaseClient'
+import {toast, ToastContainer} from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
+import {filtrar, normalizar, porFechaDesc, ORIGENES} from '../lib/registros'
 
-export default function InfoRequest() {
-    const [records, setRecords] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [category, setCategory] = useState('');
-    const [searchText, setSearchText] = useState('');
-    const [searchDate, setSearchDate] = useState('');
-    const [expandedCard, setExpandedCard] = useState(null);
+// Deben coincidir exactamente con los valores que envía el formulario de /contacto
+const CATEGORIAS = [
+    'Solicitar informes',
+    'Visitar una localidad',
+    'Tienda y compras',
+    'Otro asunto',
+]
 
+export default function InfoRequests() {
+    const [registros, setRegistros] = useState([])
+    const [cargando, setCargando] = useState(true)
+    const [error, setError] = useState('')
+    const [categoria, setCategoria] = useState('')
+    const [busqueda, setBusqueda] = useState('')
+    const [dia, setDia] = useState('')
+    const [soloPendientes, setSoloPendientes] = useState(false)
+
+    // La colección se escucha completa y se filtra en memoria, para que ningún
+    // registro quede oculto por venir de una versión anterior del formulario.
     useEffect(() => {
-        const collectionRef = collection(db, 'consult');
+        const unsubscribe = onSnapshot(
+            collection(db, 'consult'),
+            (snapshot) => {
+                try {
+                    setRegistros(snapshot.docs.map(normalizar).sort(porFechaDesc))
+                    setError('')
+                } catch (e) {
+                    console.error('Error leyendo las solicitudes:', e)
+                    setError('Algunos registros no se pudieron leer: ' + e.message)
+                }
+                setCargando(false)
+            },
+            (e) => {
+                console.error('Error fetching records:', e)
+                setError('No se pudieron cargar las solicitudes: ' + e.message)
+                setCargando(false)
+            },
+        )
+        return () => unsubscribe()
+    }, [])
 
-        const unsubscribe = onSnapshot(collectionRef, (snapshot) => {
-            const data = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data()
-            }));
+    const visibles = useMemo(
+        () => filtrar(registros, {categoria, busqueda, dia, soloPendientes}),
+        [registros, categoria, busqueda, dia, soloPendientes],
+    )
+    const pendientes = useMemo(() => registros.filter((r) => !r.served).length, [registros])
+    const hayFiltros = Boolean(categoria || busqueda || dia || soloPendientes)
 
-            setRecords(data);
-            setLoading(false);
-        }, (error) => {
-            console.error('Error fetching records:', error);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, []); // Dependencias vacías para que solo se ejecute una vez al montar el componente
-
-    const markAsServed = async (id) => {
+    const marcarAtendido = async (id) => {
         try {
-            const recordRef = doc(db, 'consult', id);
-            await updateDoc(recordRef, { served: true });
-            toast.success('Marcado como atendido');
-        } catch (error) {
-            console.error('Error updating document:', error);
-            toast.error('Error al marcar como atendido');
+            await updateDoc(doc(db, 'consult', id), {served: true})
+            toast.success('Marcado como atendido')
+        } catch (e) {
+            console.error('Error updating document:', e)
+            toast.error('No se pudo marcar como atendido')
         }
-    };
+    }
 
-    const deleteRecord = async (id) => {
+    const eliminar = async (id) => {
+        if (!window.confirm('¿Eliminar este registro? No se puede deshacer.')) return
         try {
-            const confirmed = window.confirm('¿Estás seguro de eliminar este registro?');
-            if (confirmed) {
-                const recordRef = doc(db, 'consult', id);
-                await deleteDoc(recordRef);
-                toast.success('Registro eliminado');
-            }
-        } catch (error) {
-            console.error('Error deleting document:', error);
-            toast.error('Error al eliminar el registro');
+            await deleteDoc(doc(db, 'consult', id))
+            toast.success('Registro eliminado')
+        } catch (e) {
+            console.error('Error deleting document:', e)
+            toast.error('No se pudo eliminar el registro')
         }
-    };
+    }
 
-    const toggleExpandCard = (id) => {
-        setExpandedCard(expandedCard === id ? null : id);
-    };
+    const limpiarFiltros = () => {
+        setCategoria('')
+        setBusqueda('')
+        setDia('')
+        setSoloPendientes(false)
+    }
 
-    if (loading) {
+    if (cargando) {
         return (
             <div className="loading-container">
                 <div className="loader"></div>
                 <p>Cargando registros...</p>
             </div>
-        );
+        )
     }
 
     return (
         <div className="info-request-container">
             <ToastContainer position="top-right" autoClose={3000} />
 
-            {/* Header */}
             <div className="header">
                 <h1>Solicitudes de Información</h1>
-                <p className="subtitle">Administra las consultas recibidas</p>
+                <p className="subtitle">
+                    {registros.length} en total · {pendientes} sin atender
+                </p>
             </div>
 
-            {/* Results Info */}
+            {error && <div className="error-banner">{error}</div>}
+
+            <div className="filter-section">
+                <div className="filter-group">
+                    <label htmlFor="informes-categoria">Asunto</label>
+                    <select
+                        id="informes-categoria"
+                        className="filter-select"
+                        value={categoria}
+                        onChange={(e) => setCategoria(e.target.value)}
+                    >
+                        <option value="">Todos los asuntos</option>
+                        {CATEGORIAS.map((valor) => (
+                            <option key={valor} value={valor}>
+                                {valor}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="filter-group">
+                    <label htmlFor="informes-busqueda">Buscar</label>
+                    <input
+                        id="informes-busqueda"
+                        type="text"
+                        className="search-input"
+                        placeholder="Nombre, WhatsApp, localidad o texto"
+                        value={busqueda}
+                        onChange={(e) => setBusqueda(e.target.value)}
+                    />
+                </div>
+
+                <div className="filter-group">
+                    <label htmlFor="informes-fecha">Fecha</label>
+                    <input
+                        id="informes-fecha"
+                        type="date"
+                        className="date-input"
+                        value={dia}
+                        onChange={(e) => setDia(e.target.value)}
+                    />
+                </div>
+
+                <label className="filter-check">
+                    <input
+                        type="checkbox"
+                        checked={soloPendientes}
+                        onChange={(e) => setSoloPendientes(e.target.checked)}
+                    />
+                    Solo sin atender
+                </label>
+
+                {hayFiltros && (
+                    <button type="button" className="clear-filters" onClick={limpiarFiltros}>
+                        Limpiar filtros
+                    </button>
+                )}
+            </div>
+
             <div className="results-info">
-                <p>{records.length} {records.length === 1 ? 'registro encontrado' : 'registros encontrados'}</p>
+                <p>
+                    {visibles.length} {visibles.length === 1 ? 'registro encontrado' : 'registros encontrados'}
+                </p>
             </div>
 
-            {/* Records List */}
             <div className="records-grid">
-                {records.length > 0 ? (
-                    records.map((record) => (
-                        <div
-                            key={record.id}
-                            className={`record-card ${record.served ? 'served' : ''} ${expandedCard === record.id ? 'expanded' : ''}`}
-                            onClick={() => toggleExpandCard(record.id)}
-                        >
+                {visibles.length > 0 ? (
+                    visibles.map((registro) => (
+                        <div key={registro.id} className={`record-card ${registro.served ? 'served' : ''}`}>
                             <div className="card-header">
                                 <div className="user-info">
-                                    <h2 className="record-title">{record.fullName}</h2>
-                                    <p className="record-date">
-                                        {new Date(record.createdAt).toLocaleDateString('es-MX', {
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
-                                    </p>
+                                    <h2 className="record-title">{registro.fullName}</h2>
+                                    <p className="record-date">{registro.etiquetaFecha}</p>
                                 </div>
-                                {record.served && (
-                                    <span className="served-badge">
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                                            <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
-                                        </svg>
-                                        Atendido
-                                    </span>
-                                )}
+                                {registro.served && <span className="served-badge">Atendido</span>}
                             </div>
 
                             <div className="card-content">
-                                <div className="info-row">
-                                    <span className="info-label">Motivo:</span>
-                                    <span className="info-value">{record.helpWith}</span>
-                                </div>
-
+                                {registro.helpWith && (
+                                    <div className="info-row">
+                                        <span className="info-label">Motivo:</span>
+                                        <span className="info-value">{registro.helpWith}</span>
+                                    </div>
+                                )}
                                 <div className="info-row">
                                     <span className="info-label">Consulta:</span>
-                                    <span className="info-value">{record.query}</span>
+                                    <span className="info-value">{registro.query || '—'}</span>
                                 </div>
-
-                                {(expandedCard === record.id || window.innerWidth > 768) && (
-                                    <>
-                                        <div className="info-row">
-                                            <span className="info-label">WhatsApp:</span>
-                                            <span className="info-value">
-                                                <a href={`https://wa.me/${record.whatsapp}`} target="_blank" rel="noopener noreferrer">
-                                                    {record.whatsapp}
-                                                </a>
-                                            </span>
-                                        </div>
-
-                                        <div className="info-row">
-                                            <span className="info-label">Miembro:</span>
-                                            <span className="info-value">{record.churchMember}</span>
-                                        </div>
-
-                                        {record.locality && (
-                                            <div className="info-row">
-                                                <span className="info-label">Localidad:</span>
-                                                <span className="info-value">{record.locality}</span>
-                                            </div>
+                                <div className="info-row">
+                                    <span className="info-label">WhatsApp:</span>
+                                    <span className="info-value">
+                                        {registro.whatsapp ? (
+                                            <a
+                                                href={`https://wa.me/${registro.whatsapp.replace(/\D/g, '')}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                {registro.whatsapp}
+                                            </a>
+                                        ) : (
+                                            '—'
                                         )}
-
-                                        {record.residence && (
-                                            <div className="info-row">
-                                                <span className="info-label">Residencia:</span>
-                                                <span className="info-value">{record.residence}</span>
-                                            </div>
-                                        )}
-                                    </>
+                                    </span>
+                                </div>
+                                {registro.churchMember && (
+                                    <div className="info-row">
+                                        <span className="info-label">Miembro:</span>
+                                        <span className="info-value">{registro.churchMember}</span>
+                                    </div>
+                                )}
+                                {registro.locality && (
+                                    <div className="info-row">
+                                        <span className="info-label">Localidad:</span>
+                                        <span className="info-value">{registro.locality}</span>
+                                    </div>
+                                )}
+                                {registro.residence && (
+                                    <div className="info-row">
+                                        <span className="info-label">Residencia:</span>
+                                        <span className="info-value">{registro.residence}</span>
+                                    </div>
+                                )}
+                                {registro.source && (
+                                    <div className="info-row">
+                                        <span className="info-label">Origen:</span>
+                                        <span className="info-value">
+                                            {ORIGENES[registro.source] || registro.source}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
 
                             <div className="card-actions">
-                                {!record.served && (
+                                {!registro.served ? (
                                     <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            markAsServed(record.id);
-                                        }}
+                                        type="button"
                                         className="action-btn serve-btn"
+                                        onClick={() => marcarAtendido(registro.id)}
                                     >
                                         Marcar como atendido
                                     </button>
-                                )}
-                                {record.served && (
+                                ) : (
                                     <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            deleteRecord(record.id);
-                                        }}
+                                        type="button"
                                         className="action-btn delete-btn"
+                                        onClick={() => eliminar(registro.id)}
                                     >
                                         Eliminar registro
                                     </button>
@@ -188,13 +258,11 @@ export default function InfoRequest() {
                     ))
                 ) : (
                     <div className="no-results">
-                        <img src="/no-results.svg" alt="Sin resultados" className="no-results-img" />
                         <h3>No se encontraron registros</h3>
-                        <p>Intenta ajustar tus filtros de búsqueda</p>
+                        <p>{hayFiltros ? 'Pruebe a limpiar los filtros.' : 'Todavía no se han recibido solicitudes.'}</p>
                     </div>
                 )}
             </div>
         </div>
-    );
+    )
 }
-

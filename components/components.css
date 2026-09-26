@@ -545,3 +545,44 @@ button:hover {
         padding: 15px;
     }
 }
+/* Filtros y avisos de los paneles de Peticiones y Solicitudes */
+.filter-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: #34495e;
+    white-space: nowrap;
+    cursor: pointer;
+    padding-bottom: 10px;
+}
+
+.filter-check input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.error-banner {
+    background: #fdecea;
+    color: #c0392b;
+    border: 1px solid #f5c6cb;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+}
+
+.record-card.served {
+    opacity: 0.75;
+}
+
+.record-date {
+    color: #7f8c8d;
+    font-size: 0.85rem;
+}
+
+.info-value {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
