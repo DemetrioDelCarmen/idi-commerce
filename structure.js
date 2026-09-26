@@ -11,6 +11,8 @@ import { PinIcon } from '@sanity/icons'
 import { AsteriskIcon } from '@sanity/icons'
 import { ImagesIcon } from '@sanity/icons'
 import InfoRequests from "./components/InfoRequests"
+import SolicitudesPanel from "./components/SolicitudesPanel"
+import { ASUNTOS_INFORME, MOTIVOS_PETICION } from "./schemaTypes/solicitudes"
 import LiveStreamControl from "./components/LiveStreamControl"
 // src/structure.js
 export const structure = (S) =>
@@ -204,8 +206,17 @@ export const structure = (S) =>
                 .icon(CommentIcon)
                 .child(
                     S.component()
-                        .id("requests")
-                        .component(Requests)
+                        .id("peticiones")
+                        .title('Peticiones')
+                        .options({
+                            tipo: 'peticion',
+                            titulo: 'Peticiones',
+                            descripcion: 'Enviadas desde la página de peticiones',
+                            categorias: MOTIVOS_PETICION,
+                            etiquetaCategoria: 'Motivo',
+                            mostrarMotivoOracion: true,
+                        })
+                        .component(SolicitudesPanel)
                 ),
             S.divider(),
             S.listItem()
@@ -213,7 +224,34 @@ export const structure = (S) =>
                 .icon(CommentIcon)
                 .child(
                     S.component()
-                        .id("infoRequests")
-                        .component(InfoRequests)
+                        .id("solicitudesInformes")
+                        .title('Solicitudes de Informes')
+                        .options({
+                            tipo: 'solicitudInforme',
+                            titulo: 'Solicitudes de Informes',
+                            descripcion: 'Enviadas desde contacto y el formulario del inicio',
+                            categorias: ASUNTOS_INFORME,
+                            etiquetaCategoria: 'Asunto',
+                        })
+                        .component(SolicitudesPanel)
+                ),
+            S.divider(),
+            // Registros anteriores a la migración a Sanity; siguen en Firebase, solo consulta
+            S.listItem()
+                .title('Histórico en Firebase')
+                .icon(CommentIcon)
+                .child(
+                    S.list()
+                        .title('Registros anteriores')
+                        .items([
+                            S.listItem()
+                                .title('Peticiones (histórico)')
+                                .icon(CommentIcon)
+                                .child(S.component().id("requests").component(Requests)),
+                            S.listItem()
+                                .title('Solicitudes de Informes (histórico)')
+                                .icon(CommentIcon)
+                                .child(S.component().id("infoRequests").component(InfoRequests)),
+                        ])
                 )
         ])

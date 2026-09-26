@@ -16,6 +16,7 @@
   ],
   "dependencies": {
     "@sanity/locale-es-es": "^1.2.11",
+    "@sanity/themer-legacy": "^0.2.0",
     "@sanity/vision": "^3.53.0",
     "firebase": "^10.14.0",
     "next-sanity": "^9.4.4",

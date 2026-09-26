@@ -18,6 +18,7 @@ import femenilPost from "./schemaTypes/femenilPost";
 import infantilPost from "./schemaTypes/infantilPost";
 import adolescentesPost from "./schemaTypes/adolescentesPost";
 import heroPromo from "./schemaTypes/heroPromo";
+import { peticion, solicitudInforme } from "./schemaTypes/solicitudes";
 
 export const schema = {
   types: [
@@ -41,6 +42,8 @@ export const schema = {
     juvenilPost,
     infantilPost,
     adolescentesPost,
+    peticion,
+    solicitudInforme,
 
   ],
 }

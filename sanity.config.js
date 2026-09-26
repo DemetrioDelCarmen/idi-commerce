@@ -3,7 +3,7 @@
 /**
  * This configuration is used to for the Sanity Studio that’s mounted on the `/app/studio/[[...tool]]/page.jsx` route
  */
-import { theme } from 'https://themer.sanity.build/api/hues?preset=tw-cyan'
+import { buildThemeFromUrl } from '@sanity/themer-legacy'
 import { visionTool } from '@sanity/vision'
 import { defineConfig } from 'sanity'
 import { structureTool } from 'sanity/structure'
@@ -12,6 +12,9 @@ import { apiVersion, dataset, projectId } from './env'
 import { schema } from './schema'
 import { structure } from './structure';
 import { esESLocale } from '@sanity/locale-es-es'
+
+// Mismo tema de antes, ahora desde npm y sin petición de red
+const theme = buildThemeFromUrl('https://themer.sanity.build/api/hues?preset=tw-cyan')
 export default defineConfig({
   basePath: '/studio',
   icon: LogoSanityIDI,
